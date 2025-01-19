@@ -5,18 +5,23 @@ use crate::FskcError;
 #[derive(Debug)]
 pub enum MemoryError {
     /// Address out of bounds
-    OutOfBounds(usize),
+    OutOfBounds { addr: usize, size: usize },
     /// Invalid data size
     InvalidSize { expected: usize, got: usize },
+    /// Invalid instruction
+    InvalidInstruction,
 }
 
 impl fmt::Display for MemoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MemoryError::OutOfBounds(addr) => write!(f, "Memory address out of bounds: {}", addr),
+            MemoryError::OutOfBounds { addr, size } => {
+                write!(f, "Memory address {} out of bounds (size: {})", addr, size)
+            }
             MemoryError::InvalidSize { expected, got } => {
                 write!(f, "Invalid data size: expected {}, got {}", expected, got)
             }
+            MemoryError::InvalidInstruction => write!(f, "Invalid instruction encoding"),
         }
     }
 }

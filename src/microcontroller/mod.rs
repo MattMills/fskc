@@ -1,12 +1,13 @@
 pub mod error;
-mod cpu;
-mod instructions;
-mod memory;
+pub mod cpu;
+pub mod instructions;
+pub mod memory;
 
 use crate::{Result, HomomorphicCompute};
 pub use instructions::{Instruction, Register, MemoryAddress, StatusFlags};
 pub use error::{CpuError, MemoryError};
-use cpu::Cpu;
+pub use cpu::Cpu;
+pub use memory::{Memory, MemorySegment};
 
 /// AVR-like microcontroller with homomorphic computation capabilities
 pub struct Microcontroller {
@@ -20,7 +21,6 @@ impl Microcontroller {
     /// # Arguments
     /// * `compute` - Homomorphic compute engine
     /// * `memory_size` - Size of data memory in words
-    /// * `word_size` - Size of each word in bytes (default: 32)
     pub fn new(compute: HomomorphicCompute, memory_size: usize) -> Result<Self> {
         Ok(Self {
             cpu: Cpu::new(compute, memory_size, 32),
@@ -33,8 +33,7 @@ impl Microcontroller {
     /// # Arguments
     /// * `program` - Program bytes (each instruction is 2 bytes)
     pub fn load_program(&mut self, program: &[u8]) -> Result<()> {
-        self.cpu.load_program(program);
-        Ok(())
+        self.cpu.load_program(program)
     }
     
     /// Load data into memory
@@ -63,6 +62,11 @@ impl Microcontroller {
     /// Execute loaded program
     pub fn execute(&mut self) -> Result<()> {
         self.cpu.execute()
+    }
+
+    /// Get current program counter
+    pub fn pc(&self) -> usize {
+        self.cpu.pc()
     }
 }
 

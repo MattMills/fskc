@@ -1,7 +1,7 @@
-use super::{HolographicKeyPackage, Result};
+use super::{HolographicKeyPackage, DerivedKeyPackage, Result};
 
 /// Represents a virtual register in the homomorphic computation
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Register {
     data: Vec<u8>,
     encrypted: bool,
@@ -33,10 +33,12 @@ impl Operation {
 }
 
 /// Provides x86-like computational capabilities over homomorphic encryption
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HomomorphicCompute {
-    // The underlying encryption system
-    pkg: HolographicKeyPackage,
+    // Root key package (protected)
+    root_pkg: HolographicKeyPackage,
+    // Derived key package for operations
+    derived_pkg: DerivedKeyPackage,
     // Virtual registers (AX, BX, CX, DX)
     registers: [Register; 4],
     // Flags register (Zero, Sign, Carry, etc.)
@@ -44,7 +46,7 @@ pub struct HomomorphicCompute {
 }
 
 impl Register {
-    fn new(pkg: &HolographicKeyPackage, size: usize) -> Result<Self> {
+    fn new(pkg: &DerivedKeyPackage, size: usize) -> Result<Self> {
         let mut data = vec![0; size];
         pkg.apply_forward(&mut data)?;
         Ok(Self {
@@ -56,18 +58,31 @@ impl Register {
 
 impl HomomorphicCompute {
     /// Creates a new homomorphic computation environment
-    pub fn new(pkg: HolographicKeyPackage) -> Result<Self> {
+    pub fn new(root_pkg: HolographicKeyPackage) -> Result<Self> {
+        // Derive enclave key from root
+        let derived_pkg = root_pkg.derive_enclave_key()?;
+        
         let registers = [
-            Register::new(&pkg, 8)?, // AX
-            Register::new(&pkg, 8)?, // BX
-            Register::new(&pkg, 8)?, // CX
-            Register::new(&pkg, 8)?, // DX
+            Register::new(&derived_pkg, 8)?, // AX
+            Register::new(&derived_pkg, 8)?, // BX
+            Register::new(&derived_pkg, 8)?, // CX
+            Register::new(&derived_pkg, 8)?, // DX
         ];
+        
         Ok(Self {
-            pkg,
+            root_pkg,
+            derived_pkg,
             registers,
             flags: 0,
         })
+    }
+
+    /// Advance to next time step
+    pub fn advance_time_step(&mut self) -> Result<()> {
+        // Advance both root and derived keys
+        self.root_pkg.advance()?;
+        self.derived_pkg.advance()?;
+        Ok(())
     }
 
     /// Loads a value into a register
@@ -77,7 +92,7 @@ impl HomomorphicCompute {
         }
         
         let mut reg_data = value.to_vec();
-        self.pkg.apply_forward(&mut reg_data)?;
+        self.derived_pkg.apply_forward(&mut reg_data)?;
         
         self.registers[reg] = Register {
             data: reg_data,
@@ -104,8 +119,8 @@ impl HomomorphicCompute {
                 // Get decrypted values for computation
                 let mut dest_val = self.registers[dest].data.clone();
                 let mut src_val = src_data.clone();
-                self.pkg.apply_backward(&mut dest_val)?;
-                self.pkg.apply_backward(&mut src_val)?;
+                self.derived_pkg.apply_backward(&mut dest_val)?;
+                self.derived_pkg.apply_backward(&mut src_val)?;
 
                 // Perform addition and handle carry
                 let mut result = vec![0u8; dest_val.len()];
@@ -120,12 +135,12 @@ impl HomomorphicCompute {
                 self.flags = if carry > 0 { self.flags | 1 } else { self.flags & !1 };
 
                 // Re-encrypt result
-                self.pkg.apply_forward(&mut result)?;
+                self.derived_pkg.apply_forward(&mut result)?;
                 self.registers[dest].data = result;
             },
             Operation::Xor => {
                 // XOR is naturally homomorphic
-                self.registers[dest].data = self.pkg.homomorphic_operation(
+                self.registers[dest].data = self.derived_pkg.homomorphic_operation(
                     &self.registers[dest].data,
                     &src_data
                 )?;
@@ -134,8 +149,8 @@ impl HomomorphicCompute {
                 // Get decrypted values for computation
                 let mut dest_val = self.registers[dest].data.clone();
                 let mut src_val = src_data.clone();
-                self.pkg.apply_backward(&mut dest_val)?;
-                self.pkg.apply_backward(&mut src_val)?;
+                self.derived_pkg.apply_backward(&mut dest_val)?;
+                self.derived_pkg.apply_backward(&mut src_val)?;
 
                 // Perform AND operation
                 let mut result = vec![0u8; dest_val.len()];
@@ -144,15 +159,15 @@ impl HomomorphicCompute {
                 }
 
                 // Re-encrypt result
-                self.pkg.apply_forward(&mut result)?;
+                self.derived_pkg.apply_forward(&mut result)?;
                 self.registers[dest].data = result;
             },
             Operation::Or => {
                 // Get decrypted values for computation
                 let mut dest_val = self.registers[dest].data.clone();
                 let mut src_val = src_data.clone();
-                self.pkg.apply_backward(&mut dest_val)?;
-                self.pkg.apply_backward(&mut src_val)?;
+                self.derived_pkg.apply_backward(&mut dest_val)?;
+                self.derived_pkg.apply_backward(&mut src_val)?;
 
                 // Perform OR operation
                 let mut result = vec![0u8; dest_val.len()];
@@ -161,15 +176,15 @@ impl HomomorphicCompute {
                 }
 
                 // Re-encrypt result
-                self.pkg.apply_forward(&mut result)?;
+                self.derived_pkg.apply_forward(&mut result)?;
                 self.registers[dest].data = result;
             },
             Operation::Sub => {
                 // Get decrypted values for computation
                 let mut dest_val = self.registers[dest].data.clone();
                 let mut src_val = src_data.clone();
-                self.pkg.apply_backward(&mut dest_val)?;
-                self.pkg.apply_backward(&mut src_val)?;
+                self.derived_pkg.apply_backward(&mut dest_val)?;
+                self.derived_pkg.apply_backward(&mut src_val)?;
 
                 // Perform subtraction and handle borrow
                 let mut result = vec![0u8; dest_val.len()];
@@ -183,7 +198,7 @@ impl HomomorphicCompute {
                 }
 
                 // Re-encrypt result
-                self.pkg.apply_forward(&mut result)?;
+                self.derived_pkg.apply_forward(&mut result)?;
                 self.registers[dest].data = result;
             },
             _ => return Err(crate::FskcError::EncryptionError("Operation not implemented".into())),
@@ -191,7 +206,7 @@ impl HomomorphicCompute {
 
         // Update zero flag
         let mut result_check = self.registers[dest].data.clone();
-        self.pkg.apply_backward(&mut result_check)?;
+        self.derived_pkg.apply_backward(&mut result_check)?;
         if result_check.iter().all(|&x| x == 0) {
             self.flags |= 2;
         } else {
@@ -208,7 +223,7 @@ impl HomomorphicCompute {
         }
 
         let reg_data = &mut self.registers[reg].data.clone();
-        self.pkg.apply_backward(reg_data)?;
+        self.derived_pkg.apply_backward(reg_data)?;
         Ok(reg_data.to_vec())
     }
 

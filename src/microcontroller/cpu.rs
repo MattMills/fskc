@@ -1,144 +1,146 @@
-use crate::{Result, HomomorphicCompute, Operation};
-use super::{
-    instructions::{MemoryAddress, StatusFlags},
-    memory::{DataMemory, ProgramMemory, RegisterFile, MemorySegment},
-    error::CpuError,
-};
+use crate::{Result, HomomorphicCompute};
+use super::instructions::{Instruction, MemoryAddress, StatusFlags};
+use super::memory::Memory;
+use super::error::CpuError;
 
-/// CPU state and execution
+/// AVR-like CPU with homomorphic computation capabilities
 pub struct Cpu {
-    compute: HomomorphicCompute,
-    registers: RegisterFile,
-    data_memory: DataMemory,
-    program_memory: ProgramMemory,
+    /// Program counter
     pc: usize,
-    status: StatusFlags,
-    word_size: usize,
+    /// Status flags
+    flags: StatusFlags,
+    /// Compute engine
+    compute: HomomorphicCompute,
+    /// Memory
+    memory: Memory,
 }
 
 impl Cpu {
     /// Create new CPU instance
-    pub fn new(compute: HomomorphicCompute, memory_size: usize, word_size: usize) -> Self {
+    pub fn new(compute: HomomorphicCompute, memory_size: usize, _word_size: usize) -> Self {
         Self {
-            compute,
-            registers: RegisterFile::new(32, word_size),
-            data_memory: DataMemory::new(memory_size, word_size),
-            program_memory: ProgramMemory::new(),
             pc: 0,
-            status: StatusFlags::new(),
-            word_size,
+            flags: StatusFlags::new(),
+            compute,
+            memory: Memory::new(memory_size),
         }
     }
-    
+
+    /// Get current program counter
+    pub fn pc(&self) -> usize {
+        self.pc
+    }
+
     /// Load program into memory
-    pub fn load_program(&mut self, program: &[u8]) {
-        self.program_memory.load_program(program);
-    }
-    
-    /// Load data into memory
-    pub fn load_data(&mut self, addr: MemoryAddress, data: &[u8]) -> Result<()> {
-        // Normalize data through compute engine
-        self.compute.load(0, data)?;
-        self.compute.compute(Operation::Add, 0, 0)?;
-        let normalized = self.compute.read(0)?;
+    pub fn load_program(&mut self, program: &[u8]) -> Result<()> {
+        println!("Loading program bytes: {:?}", program);
+        // Write program bytes directly to program memory
+        self.memory.write_program(program)?;
         
-        // Store normalized data
-        self.data_memory.write(addr, &normalized)
-    }
-    
-    /// Read memory value
-    pub fn read_memory(&self, addr: MemoryAddress) -> Result<&[u8]> {
-        self.data_memory.read(addr)
-    }
-    
-    /// Execute loaded program
-    pub fn execute(&mut self) -> Result<()> {
-        while let Some((opcode, operand)) = self.program_memory.fetch(self.pc) {
-            // Execute one instruction
-            self.execute_instruction(opcode, operand)?;
-            
-            // Advance PC (unless modified by jump)
-            self.pc += 2;
+        // Print program memory contents for verification
+        for i in (0..program.len()).step_by(2) {
+            let byte1 = self.memory.read_program_byte(i)?;
+            let byte2 = if i + 1 < program.len() {
+                self.memory.read_program_byte(i + 1)?
+            } else {
+                0
+            };
+            println!("Address {}: 0x{:02x} 0x{:02x}", i, byte1, byte2);
         }
         Ok(())
     }
-    
-    // Execute single instruction
-    fn execute_instruction(&mut self, opcode: u8, operand: u8) -> Result<()> {
-        // Extract register fields
-        let rd = (operand & 0x0F) as u8;
-        let rs = (operand >> 4) as u8;
-        
-        match opcode {
-            // Load from memory
-            0x80 => {
-                let addr = MemoryAddress::new(u16::from(rs));
-                let data = self.data_memory.read(addr)?;
-                
-                // Normalize through compute engine
-                self.compute.load(0, data)?;
-                self.compute.compute(Operation::Add, 0, 0)?;
-                let normalized = self.compute.read(0)?;
-                
-                self.registers.write(rd, &normalized)?;
-                Ok(())
+
+    /// Load data into memory
+    pub fn load_data(&mut self, addr: MemoryAddress, data: &[u8]) -> Result<()> {
+        self.memory.write_bytes(addr.value(), data)
+    }
+
+    /// Read from memory
+    pub fn read_memory(&self, addr: MemoryAddress) -> Result<&[u8]> {
+        self.memory.read_bytes(addr.value())
+    }
+
+    /// Execute loaded program
+    pub fn execute(&mut self) -> Result<()> {
+        loop {
+            // Read instruction bytes
+            let bytes = self.memory.read_bytes(self.pc)?;
+            println!("Read bytes at PC={}: {:?}", self.pc, bytes);
+            let opcode = bytes[0];
+            let operand = bytes[1];
+
+            println!("PC: {}, Opcode: 0x{:02x}, Operand: 0x{:02x}", self.pc, opcode, operand);
+
+            // Decode and execute
+            if let Some(instr) = Instruction::decode(opcode, operand) {
+                println!("Decoded instruction: {:?}", instr);
+                match instr {
+                    Instruction::Halt => break,
+                    _ => {
+                        self.execute_instruction(instr)?;
+                    }
+                }
+                self.pc += 2; // Move to next instruction after execution
+            } else {
+                return Err(CpuError::InvalidInstruction.into());
             }
-            
-            // Store to memory
-            0x82 => {
-                let addr = MemoryAddress::new(u16::from(rd));
-                let data = self.registers.read(rs)?;
-                
-                // Normalize through compute engine
-                self.compute.load(0, data)?;
-                self.compute.compute(Operation::Add, 0, 0)?;
-                let normalized = self.compute.read(0)?;
-                
-                self.data_memory.write(addr, &normalized)?;
-                Ok(())
+        }
+        Ok(())
+    }
+
+    /// Execute single instruction
+    fn execute_instruction(&mut self, instr: Instruction) -> Result<()> {
+        match instr {
+            Instruction::Load(rd, addr) => {
+                // Load from data memory into register
+                let data = self.memory.read_bytes(addr.value())?.to_vec();
+                self.memory.write_bytes(rd.index() + 0x100, &data)?;
             }
-            
-            // Add registers
-            0x03 => {
-                // Load and normalize operands
-                let op1 = self.registers.read(rd)?;
-                self.compute.load(0, op1)?;
-                self.compute.compute(Operation::Add, 0, 0)?;
-                let normalized1 = self.compute.read(0)?;
+            Instruction::Store(addr, rs) => {
+                // Store from register to data memory
+                let data = self.memory.read_bytes(rs.index() + 0x100)?.to_vec();
+                println!("Storing register {} value to memory {:#x}: {:?}", rs.index(), addr.value(), &data[..4]);
+                self.memory.write_bytes(addr.value(), &data)?;
+            }
+            Instruction::Add(rd, rs1, rs2) => {
+                // Read operands from registers
+                let op1 = self.memory.read_bytes(rs1.index() + 0x100)?.to_vec();
+                let op2 = self.memory.read_bytes(rs2.index() + 0x100)?.to_vec();
                 
-                let op2 = self.registers.read(rs)?;
-                self.compute.load(0, op2)?;
-                self.compute.compute(Operation::Add, 0, 0)?;
-                let normalized2 = self.compute.read(0)?;
-                
-                // Perform addition
-                self.compute.load(0, &normalized1)?;
-                self.compute.load(1, &normalized2)?;
-                self.compute.compute(Operation::Add, 0, 1)?;
+                // Perform addition in homomorphic space
+                self.compute.load(0, &op1)?;
+                self.compute.load(1, &op2)?;
+                self.compute.compute(crate::Operation::Add, 0, 1)?;
                 let result = self.compute.read(0)?;
                 
-                // Update flags
-                self.status.zero = result.iter().all(|&x| x == 0);
-                self.status.negative = result[0] & 0x80 != 0;
+                // Store result in destination register
+                println!("Storing add result to register {}: {:?}", rd.index(), &result[..4]);
+                self.memory.write_bytes(rd.index() + 0x100, &result)?;
+            }
+            Instruction::Xor(rd, rs1, rs2) => {
+                // Read operands from registers
+                let op1 = self.memory.read_bytes(rs1.index() + 0x100)?.to_vec();
+                let op2 = self.memory.read_bytes(rs2.index() + 0x100)?.to_vec();
                 
-                // Store result
-                self.registers.write(rd, &result)?;
-                Ok(())
+                // Perform XOR in homomorphic space
+                self.compute.load(0, &op1)?;
+                self.compute.load(1, &op2)?;
+                self.compute.compute(crate::Operation::Xor, 0, 1)?;
+                let result = self.compute.read(0)?;
+                
+                // Store result in destination register
+                self.memory.write_bytes(rd.index() + 0x100, &result)?;
             }
-            
-            // Branch if equal
-            0xF0 => {
-                if self.status.zero {
-                    self.pc = ((self.pc as i32) + (operand as i32)) as usize;
+            Instruction::Jump(addr) => {
+                self.pc = addr.value();
+            }
+            Instruction::BranchEq(addr) => {
+                if self.flags.zero {
+                    self.pc = addr.value();
                 }
-                Ok(())
             }
-            
-            // Halt
-            0xFF => Ok(()),
-            
-            // Invalid/unimplemented
-            _ => Err(CpuError::InvalidInstruction.into()),
+            _ => {} // Other instructions not implemented yet
         }
+        Ok(())
     }
 }

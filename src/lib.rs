@@ -16,6 +16,7 @@ pub mod binary_container;
 pub mod zkp_container;
 pub mod vm;
 pub mod microcontroller;
+pub mod enclave;
 
 pub use fractal::FractalNode;
 pub use roving::RovingSelector;
@@ -38,6 +39,7 @@ pub use holographic::compute::{HomomorphicCompute, Operation};
 pub use inside_out::{ComputePair, SystemState};
 pub use binary_container::{BinaryContainer, VerificationResult};
 pub use zkp_container::ZkpContainer;
+pub use enclave::{BlockContext, ExecutionMode, MemoryRegion, ProtectionLevel};
 
 /// Result type for FSKC operations
 pub type Result<T> = std::result::Result<T, FskcError>;
