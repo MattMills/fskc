@@ -1,8 +1,13 @@
-use fskc::{FractalNode, RovingSelector, Result};
+use fskc::{
+    LayeredCrypto, LayerConfig, RovingSelector,
+    EntropyBuilder, Result,
+};
+use rand::{SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
 fn main() -> Result<()> {
     // Example message to encrypt
-    let message = b"This is a secret message that will be encrypted using fractal structures!".to_vec();
+    let message = b"This is a secret message that will be encrypted using layered fractal structures!".to_vec();
     println!("Original message: {}", String::from_utf8_lossy(&message));
 
     // First, use the roving selector to generate a seed from some shared data
@@ -22,27 +27,104 @@ fn main() -> Result<()> {
         }
     }
 
-    println!("Generated seed from roving selector: {}", combined_seed);
+    println!("Generated initial seed from roving selector: {}", combined_seed);
 
-    // Now use the fractal structure to encrypt the message
-    let chunk_size = 16; // Size of data chunks for fractal structure
-    let depth = 3; // Depth of the fractal structure
-    
-    // Generate the fractal structure (encrypts the data)
-    let encrypted = FractalNode::generate(message.clone(), combined_seed, depth, chunk_size)?;
-    
-    println!("\nMessage has been encrypted using fractal structure");
-    println!("Fractal depth: {}", encrypted.depth());
-    println!("Number of child nodes: {}", encrypted.child_count());
+    // Example 1: Basic layered encryption (FSKC + AES)
+    println!("\nExample 1: Basic layered encryption");
+    let config = LayerConfig::builder()
+        .add_fractal()
+        .add_aes()
+        .build();
 
-    // Decrypt the message
-    let decrypted = encrypted.decrypt()?;
+    let mut crypto = LayeredCrypto::with_config(combined_seed, config.clone());
+    let encrypted = crypto.encrypt(&message, combined_seed)?;
+    let mut crypto = LayeredCrypto::with_config(combined_seed, config);
+    let decrypted = crypto.decrypt(&encrypted, combined_seed)?;
+    assert_eq!(message, decrypted);
+    println!("Basic layered encryption successful!");
+
+    // Example 2: High-performance configuration with multiple RNGs
+    println!("\nExample 2: High-performance configuration with multiple RNGs");
+    let config = LayerConfig::builder()
+        .add_fractal()
+        .add_chacha()
+        .fractal_depth(2)  // Reduced depth for performance
+        .chunk_size(128)   // Larger chunks for performance
+        .build();
+
+    // Create entropy from multiple RNGs
+    let rng1 = ChaCha20Rng::seed_from_u64(combined_seed);
+    let rng2 = ChaCha20Rng::seed_from_u64(combined_seed.wrapping_add(1));
+    let entropy = EntropyBuilder::new()
+        .add_rng(rng1, "ChaCha20 RNG 1")
+        .add_rng(rng2, "ChaCha20 RNG 2")
+        .build();
+
+    let mut crypto = LayeredCrypto::with_entropy(entropy, config.clone());
+    let encrypted = crypto.encrypt(&message, combined_seed)?;
+    let mut crypto = LayeredCrypto::with_config(combined_seed, config);
+    let decrypted = crypto.decrypt(&encrypted, combined_seed)?;
+    assert_eq!(message, decrypted);
+    println!("High-performance encryption successful!");
+
+    // Example 3: Maximum security with physical entropy
+    println!("\nExample 3: Maximum security with physical entropy");
+    let config = LayerConfig::builder()
+        .add_fractal()
+        .add_aes()
+        .add_chacha()
+        .add_aes()
+        .add_fractal()
+        .enable_zippering()
+        .build();
+
+    // Simulate physical entropy sources
+    let ligo_data = vec![0x42; 1024];  // In practice, this would be real LIGO data
+    let stellar_data = vec![0x17; 1024]; // In practice, this would be real stellar data
     
-    println!("\nDecrypted message: {}", String::from_utf8_lossy(&decrypted));
-    
-    // Verify the decryption was successful
-    assert_eq!(message, decrypted, "Decryption failed!");
-    println!("\nVerification successful - decrypted message matches original!");
+    let entropy = EntropyBuilder::new()
+        .add_rng(ChaCha20Rng::seed_from_u64(combined_seed), "Base RNG")
+        .add_ligo_data(ligo_data)
+        .add_stellar_parallax(stellar_data)
+        .build();
+
+    let mut crypto = LayeredCrypto::with_entropy(entropy, config.clone());
+    let encrypted = crypto.encrypt(&message, combined_seed)?;
+    let mut crypto = LayeredCrypto::with_config(combined_seed, config);
+    let decrypted = crypto.decrypt(&encrypted, combined_seed)?;
+    assert_eq!(message, decrypted);
+    println!("Maximum security encryption successful!");
+
+    // Example 4: Custom sequence with mixed entropy
+    println!("\nExample 4: Custom sequence with mixed entropy");
+    let config = LayerConfig::builder()
+        .add_chacha()      // Fast initial scrambling
+        .add_fractal()     // Geometric complexity
+        .add_aes()         // Strong symmetric encryption
+        .chunk_size(256)   // Custom chunk size
+        .fractal_depth(4)  // Custom fractal depth
+        .build();
+
+    // Create entropy from multiple sources
+    let custom_physical = vec![0x89; 1024]; // Custom physical measurements
+    let entropy = EntropyBuilder::new()
+        .add_rng(ChaCha20Rng::seed_from_u64(combined_seed), "Base RNG")
+        .add_physical_source(custom_physical, "Custom Physical Source")
+        .build();
+
+    let mut crypto = LayeredCrypto::with_entropy(entropy, config.clone());
+    let encrypted = crypto.encrypt(&message, combined_seed)?;
+    let mut crypto = LayeredCrypto::with_config(combined_seed, config);
+    let decrypted = crypto.decrypt(&encrypted, combined_seed)?;
+    assert_eq!(message, decrypted);
+    println!("Custom sequence encryption successful!");
+
+    // Print entropy source information
+    println!("\nEntropy sources used in examples:");
+    println!("1. Basic: ChaCha20 RNG");
+    println!("2. High-performance: Multiple ChaCha20 RNGs");
+    println!("3. Maximum security: ChaCha20 RNG + LIGO data + Stellar parallax");
+    println!("4. Custom: ChaCha20 RNG + Custom physical measurements");
 
     Ok(())
 }

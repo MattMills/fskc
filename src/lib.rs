@@ -8,10 +8,27 @@ mod roving;
 mod crypto;
 mod utils;
 mod error;
+mod layered;
+mod entropy;
+mod holographic;
 
 pub use fractal::FractalNode;
 pub use roving::RovingSelector;
 pub use error::FskcError;
+pub use layered::{
+    LayeredCrypto,
+    LayerConfig,
+    Layer,
+    SymmetricLayer,
+    FractalLayer,
+};
+pub use entropy::{
+    EntropySource,
+    EntropyBuilder,
+    RngEntropy,
+    PhysicalEntropy,
+};
+pub use holographic::HolographicKeyPackage;
 
 /// Result type for FSKC operations
 pub type Result<T> = std::result::Result<T, FskcError>;

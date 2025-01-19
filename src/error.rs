@@ -1,4 +1,6 @@
 use thiserror::Error;
+use rand::Error as RngError;
+use getrandom::Error as GetRandomError;
 
 /// Custom error types for FSKC operations
 #[derive(Error, Debug)]
@@ -32,4 +34,16 @@ pub enum FskcError {
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+}
+
+impl From<RngError> for FskcError {
+    fn from(error: RngError) -> Self {
+        FskcError::RngError(error.to_string())
+    }
+}
+
+impl From<FskcError> for RngError {
+    fn from(_: FskcError) -> Self {
+        RngError::from(GetRandomError::UNSUPPORTED)
+    }
 }

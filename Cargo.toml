@@ -12,6 +12,9 @@ sha2 = "0.10"          # For hashing operations
 nalgebra = "0.32"      # For high-dimensional space operations
 thiserror = "1.0"      # For error handling
 rayon = "1.7"          # For parallel processing
+aes-gcm = "0.10"       # For AES-GCM encryption layer
+chacha20 = "0.9"       # For ChaCha20 stream cipher
+getrandom = "0.2"      # For entropy error handling
 
 [dev-dependencies]
 criterion = "0.4"      # For benchmarking
