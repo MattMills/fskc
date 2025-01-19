@@ -33,6 +33,7 @@ impl Operation {
 }
 
 /// Provides x86-like computational capabilities over homomorphic encryption
+#[derive(Clone)]
 pub struct HomomorphicCompute {
     // The underlying encryption system
     pkg: HolographicKeyPackage,

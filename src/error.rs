@@ -34,6 +34,9 @@ pub enum FskcError {
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+
+    #[error("{0}")]
+    Custom(String),
 }
 
 impl From<RngError> for FskcError {

@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     pkg.add_time_step(&mut rng)?;
 
     // Create compute environment
-    let mut compute = HomomorphicCompute::new(pkg);
+    let mut compute = HomomorphicCompute::new(pkg)?;
 
     // Load values into registers
     let value1 = vec![25u8]; // AX

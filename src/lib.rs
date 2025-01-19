@@ -13,6 +13,9 @@ pub mod entropy;
 mod holographic;
 pub mod inside_out;
 pub mod binary_container;
+pub mod zkp_container;
+pub mod vm;
+pub mod microcontroller;
 
 pub use fractal::FractalNode;
 pub use roving::RovingSelector;
@@ -34,6 +37,7 @@ pub use holographic::HolographicKeyPackage;
 pub use holographic::compute::{HomomorphicCompute, Operation};
 pub use inside_out::{ComputePair, SystemState};
 pub use binary_container::{BinaryContainer, VerificationResult};
+pub use zkp_container::ZkpContainer;
 
 /// Result type for FSKC operations
 pub type Result<T> = std::result::Result<T, FskcError>;

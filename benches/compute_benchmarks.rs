@@ -7,7 +7,7 @@ fn setup_compute() -> Result<HomomorphicCompute> {
     let mut rng = ChaCha20Rng::seed_from_u64(12345);
     let mut pkg = HolographicKeyPackage::new(vec![0x42; 32]);
     pkg.add_time_step(&mut rng)?;
-    Ok(HomomorphicCompute::new(pkg))
+    HomomorphicCompute::new(pkg)
 }
 
 fn bench_operation(c: &mut Criterion, op: Operation, name: &str) {
