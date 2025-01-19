@@ -9,8 +9,9 @@ mod crypto;
 mod utils;
 mod error;
 mod layered;
-mod entropy;
+pub mod entropy;
 mod holographic;
+pub mod inside_out;
 
 pub use fractal::FractalNode;
 pub use roving::RovingSelector;
@@ -29,6 +30,8 @@ pub use entropy::{
     PhysicalEntropy,
 };
 pub use holographic::HolographicKeyPackage;
+pub use holographic::compute::{HomomorphicCompute, Operation};
+pub use inside_out::{ComputePair, SystemState};
 
 /// Result type for FSKC operations
 pub type Result<T> = std::result::Result<T, FskcError>;

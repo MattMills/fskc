@@ -17,15 +17,19 @@ chacha20 = "0.9"       # For ChaCha20 stream cipher
 getrandom = "0.2"      # For entropy error handling
 
 [dev-dependencies]
-criterion = "0.4"      # For benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.2"       # For property testing
-test-case = "3.1"     # For parameterized tests
+test-case = "3.1"      # For parameterized tests
 
 [features]
-nightly = []          # For benchmark tests
+nightly = []           # For benchmark tests
 
 [[bench]]
 name = "encryption_benchmarks"
+harness = false
+
+[[bench]]
+name = "compute_benchmarks"
 harness = false
 
 [[example]]

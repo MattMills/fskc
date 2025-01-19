@@ -1,3 +1,5 @@
+pub mod compute;
+
 use crate::{Result, FskcError};
 use rand::{RngCore, CryptoRng};
 
@@ -10,6 +12,7 @@ struct TimeStep {
 }
 
 /// Represents a holographic key package with time-sequence based homomorphic operations
+#[derive(Clone)]
 pub struct HolographicKeyPackage {
     // Sequence of time steps for homomorphic operations
     time_steps: Vec<TimeStep>,
