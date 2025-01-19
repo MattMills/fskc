@@ -1,0 +1,30 @@
+[package]
+name = "fskc"
+version = "0.1.0"
+edition = "2021"
+description = "FractalStateKeyCrypto - A cryptographic library using fractal structures and geometric complexity"
+authors = ["Your Name <your.email@example.com>"]
+
+[dependencies]
+rand = "0.8"           # For secure RNG
+rand_chacha = "0.3"    # ChaCha20 RNG implementation
+sha2 = "0.10"          # For hashing operations
+nalgebra = "0.32"      # For high-dimensional space operations
+thiserror = "1.0"      # For error handling
+rayon = "1.7"          # For parallel processing
+
+[dev-dependencies]
+criterion = "0.4"      # For benchmarking
+proptest = "1.2"       # For property testing
+test-case = "3.1"     # For parameterized tests
+
+[features]
+nightly = []          # For benchmark tests
+
+[[bench]]
+name = "encryption_benchmarks"
+harness = false
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
