@@ -12,6 +12,7 @@ mod layered;
 pub mod entropy;
 mod holographic;
 pub mod inside_out;
+pub mod binary_container;
 
 pub use fractal::FractalNode;
 pub use roving::RovingSelector;
@@ -32,6 +33,7 @@ pub use entropy::{
 pub use holographic::HolographicKeyPackage;
 pub use holographic::compute::{HomomorphicCompute, Operation};
 pub use inside_out::{ComputePair, SystemState};
+pub use binary_container::{BinaryContainer, VerificationResult};
 
 /// Result type for FSKC operations
 pub type Result<T> = std::result::Result<T, FskcError>;
