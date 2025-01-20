@@ -1,6 +1,7 @@
 use thiserror::Error;
 use rand::Error as RngError;
 use getrandom::Error as GetRandomError;
+use std::time::SystemTimeError;
 
 /// Custom error types for FSKC operations
 #[derive(Error, Debug)]
@@ -35,6 +36,12 @@ pub enum FskcError {
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 
+    #[error("Entropy error: {0}")]
+    EntropyError(String),
+
+    #[error("Sensor error: {0}")]
+    SensorError(String),
+
     #[error("{0}")]
     Custom(String),
 }
@@ -48,5 +55,11 @@ impl From<RngError> for FskcError {
 impl From<FskcError> for RngError {
     fn from(_: FskcError) -> Self {
         RngError::from(GetRandomError::UNSUPPORTED)
+    }
+}
+
+impl From<SystemTimeError> for FskcError {
+    fn from(error: SystemTimeError) -> Self {
+        FskcError::Custom(error.to_string())
     }
 }

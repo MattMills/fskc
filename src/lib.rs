@@ -10,6 +10,7 @@ mod utils;
 mod error;
 mod layered;
 pub mod entropy;
+pub mod pairlet;
 mod holographic;
 pub mod inside_out;
 pub mod binary_container;
@@ -33,6 +34,13 @@ pub use entropy::{
     EntropyBuilder,
     RngEntropy,
     PhysicalEntropy,
+};
+pub use entropy::sensor::{
+    Sensor,
+    SensorConfig,
+    EntropyQuality,
+    Accelerometer,
+    Barometer,
 };
 pub use holographic::HolographicKeyPackage;
 pub use holographic::compute::{HomomorphicCompute, Operation};

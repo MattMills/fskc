@@ -39,3 +39,31 @@ harness = false
 [[example]]
 name = "basic_usage"
 path = "examples/basic_usage.rs"
+
+[[example]]
+name = "sensor_entropy"
+path = "examples/sensor_entropy.rs"
+
+[[example]]
+name = "pairlet_validation"
+path = "examples/pairlet_validation.rs"
+
+[[example]]
+name = "context_establishment"
+path = "examples/context_establishment.rs"
+
+[[example]]
+name = "key_generation"
+path = "examples/key_generation.rs"
+
+[[example]]
+name = "key_exchange"
+path = "examples/key_exchange.rs"
+
+[[example]]
+name = "key_rotation"
+path = "examples/key_rotation.rs"
+
+[[example]]
+name = "key_recovery"
+path = "examples/key_recovery.rs"

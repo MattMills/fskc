@@ -3,6 +3,9 @@ use rand::{RngCore, Error as RngError, CryptoRng};
 use std::sync::{Arc, Mutex};
 use getrandom::Error as GetRandomError;
 
+pub mod sensor;
+use sensor::{Sensor, SensorConfig, EntropyQuality};
+
 /// Represents a source of entropy
 pub trait EntropySource: Send + Sync {
     /// Fills the provided buffer with entropy
@@ -82,20 +85,53 @@ impl EntropySource for PhysicalEntropy {
     }
 }
 
-/// Combines multiple entropy sources
+/// Combines multiple entropy sources including physical sensors
 pub struct CombinedEntropy {
     sources: Vec<Box<dyn EntropySource>>,
+    sensors: Vec<Box<dyn Sensor>>,
     buffer: Vec<u8>,
     position: usize,
+    sensor_config: SensorConfig,
 }
 
 impl CombinedEntropy {
     pub fn new() -> Self {
         Self {
             sources: Vec::new(),
+            sensors: Vec::new(),
             buffer: Vec::new(),
             position: 0,
+            sensor_config: SensorConfig::default(),
         }
+    }
+
+    /// Add a sensor to the entropy pool
+    pub fn add_sensor<S: Sensor + 'static>(&mut self, mut sensor: S) -> Result<()> {
+        sensor.start(&self.sensor_config)?;
+        self.sensors.push(Box::new(sensor));
+        Ok(())
+    }
+
+    /// Set sensor configuration
+    pub fn set_sensor_config(&mut self, config: SensorConfig) -> Result<()> {
+        self.sensor_config = config;
+        // Update all sensors with new config
+        for sensor in &mut self.sensors {
+            sensor.start(&self.sensor_config)?;
+        }
+        Ok(())
+    }
+
+    /// Get entropy quality metrics from all sensors
+    pub fn sensor_quality(&self) -> Vec<(String, EntropyQuality)> {
+        self.sensors
+            .iter()
+            .filter_map(|s| {
+                s.quality()
+                    .ok()
+                    .map(|q| (s.description().to_string(), q))
+            })
+            .collect()
     }
 
     /// Adds an entropy source to the combination
@@ -128,13 +164,24 @@ impl CombinedEntropy {
             *byte = 0;
         }
 
-        // Collect entropy from all sources
+        // Collect entropy from standard sources
         for source in &mut self.sources {
             let mut source_bytes = vec![0u8; dest.len()];
             source.fill_bytes(&mut source_bytes)?;
             
             // XOR with existing buffer
             for (buf_byte, src_byte) in dest.iter_mut().zip(source_bytes.iter()) {
+                *buf_byte ^= src_byte;
+            }
+        }
+
+        // Collect entropy from sensors
+        for sensor in &mut self.sensors {
+            let mut sensor_bytes = vec![0u8; dest.len()];
+            sensor.fill_entropy(&mut sensor_bytes)?;
+            
+            // XOR with existing buffer
+            for (buf_byte, src_byte) in dest.iter_mut().zip(sensor_bytes.iter()) {
                 *buf_byte ^= src_byte;
             }
         }
@@ -200,13 +247,47 @@ impl CryptoRng for CombinedEntropy {}
 /// Builder for creating entropy configurations
 pub struct EntropyBuilder {
     combined: CombinedEntropy,
+    sensor_config: SensorConfig,
 }
 
 impl EntropyBuilder {
     pub fn new() -> Self {
         Self {
             combined: CombinedEntropy::new(),
+            sensor_config: SensorConfig::default(),
         }
+    }
+
+    /// Configure sensor parameters
+    pub fn with_sensor_config(mut self, config: SensorConfig) -> Self {
+        self.sensor_config = config;
+        self
+    }
+
+    /// Add an accelerometer sensor
+    pub fn add_accelerometer(mut self) -> Self {
+        let accel = sensor::Accelerometer::new();
+        if let Ok(()) = self.combined.add_sensor(accel) {
+            // Sensor added successfully
+        }
+        self
+    }
+
+    /// Add a barometer sensor
+    pub fn add_barometer(mut self) -> Self {
+        let baro = sensor::Barometer::new();
+        if let Ok(()) = self.combined.add_sensor(baro) {
+            // Sensor added successfully
+        }
+        self
+    }
+
+    /// Add a custom sensor
+    pub fn add_sensor<S: Sensor + 'static>(mut self, sensor: S) -> Self {
+        if let Ok(()) = self.combined.add_sensor(sensor) {
+            // Sensor added successfully
+        }
+        self
     }
 
     /// Adds a standard RNG source
