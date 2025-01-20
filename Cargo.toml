@@ -67,3 +67,11 @@ path = "examples/key_rotation.rs"
 [[example]]
 name = "key_recovery"
 path = "examples/key_recovery.rs"
+
+[[example]]
+name = "ios_sensor_entropy"
+path = "examples/ios_sensor_entropy.rs"
+
+[[example]]
+name = "triplet_verification"
+path = "examples/triplet_verification.rs"

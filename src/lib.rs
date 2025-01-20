@@ -18,6 +18,16 @@ pub mod zkp_container;
 pub mod vm;
 pub mod microcontroller;
 pub mod enclave;
+pub mod triplet;
+
+pub use triplet::{
+    TimingVerificationNode,
+    RFState,
+    EntropyFeed,
+    QuantumSeedExchange,
+    ExchangeMode,
+    StateProof,
+};
 
 pub use fractal::FractalNode;
 pub use roving::RovingSelector;
@@ -30,11 +40,11 @@ pub use layered::{
     FractalLayer,
 };
 pub use entropy::{
-    EntropySource,
     EntropyBuilder,
     RngEntropy,
     PhysicalEntropy,
 };
+pub use entropy::EntropySource;
 pub use entropy::sensor::{
     Sensor,
     SensorConfig,

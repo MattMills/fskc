@@ -4,7 +4,10 @@ use std::sync::{Arc, Mutex};
 use getrandom::Error as GetRandomError;
 
 pub mod sensor;
-use sensor::{Sensor, SensorConfig, EntropyQuality};
+pub mod ios_sensor;
+
+pub use sensor::{Sensor, SensorConfig, EntropyQuality};
+pub use ios_sensor::{IosSensorEntropy, SensorReading, AccelerometerSource, BarometerSource};
 
 /// Represents a source of entropy
 pub trait EntropySource: Send + Sync {
@@ -14,6 +17,7 @@ pub trait EntropySource: Send + Sync {
     /// Returns a description of the entropy source
     fn description(&self) -> &str;
 }
+
 
 /// Standard RNG-based entropy source
 pub struct RngEntropy<R: RngCore> {
@@ -282,6 +286,13 @@ impl EntropyBuilder {
         self
     }
 
+    /// Add an iOS sensor entropy source
+    pub fn add_ios_sensors(mut self, sample_rate: f64) -> Self {
+        let ios = IosSensorEntropy::new(sample_rate);
+        self.combined.add_source(ios);
+        self
+    }
+
     /// Add a custom sensor
     pub fn add_sensor<S: Sensor + 'static>(mut self, sensor: S) -> Self {
         if let Ok(()) = self.combined.add_sensor(sensor) {
@@ -386,5 +397,39 @@ mod tests {
 
         // Verify different values
         assert_ne!(bytes, bytes2);
+    }
+
+    #[test]
+    fn test_ios_sensor_entropy() -> Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // Create test reading
+        let reading = SensorReading {
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            data: vec![0.5, 0.6, 0.7],
+            quality: EntropyQuality {
+                shannon_entropy: 0.8,
+                sample_rate: 100.0,
+                signal_to_noise: 10.0,
+                temporal_consistency: 0.9,
+            },
+        };
+
+        // Create iOS sensor entropy source
+        let mut ios = IosSensorEntropy::new(100.0);
+        
+        // Add readings
+        ios.add_accelerometer_reading(reading.clone())?;
+        ios.add_barometer_reading(reading)?;
+
+        // Test entropy generation
+        let mut dest = vec![0u8; 32];
+        ios.fill_bytes(&mut dest)?;
+        assert!(!dest.iter().all(|&x| x == 0));
+
+        Ok(())
     }
 }
