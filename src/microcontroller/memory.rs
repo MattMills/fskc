@@ -119,9 +119,7 @@ impl Memory {
                 size: self.program.data.len(),
             }.into());
         }
-        println!("Writing program bytes: {:?}", program);
         self.program.data[..program.len()].copy_from_slice(program);
-        println!("Program memory after write: {:?}", &self.program.data[..program.len()]);
         Ok(())
     }
 
@@ -146,12 +144,7 @@ impl Memory {
                     size: self.program.data.len(),
                 }.into());
             }
-            println!("Writing to program memory at {}: {:02x} {:02x}", addr, data[0], data[1]);
             self.program.data[addr..addr+data.len()].copy_from_slice(data);
-            println!("Program memory now contains: {:02x} {:02x}", 
-                self.program.data[addr], 
-                if addr + 1 < self.program.data.len() { self.program.data[addr + 1] } else { 0 }
-            );
         } else if addr < 0x200 {
             // Register file (0x100-0x1FF)
             let reg_addr = addr - 0x100;
@@ -167,7 +160,6 @@ impl Memory {
                     got: data.len(),
                 }.into());
             }
-            println!("Writing to register {} at {:#x}: {:?}", reg_addr, addr, &data[..4]);
             self.registers.data[reg_addr].copy_from_slice(data);
         } else {
             // Data memory (0x400+)
@@ -184,7 +176,6 @@ impl Memory {
                     got: data.len(),
                 }.into());
             }
-            println!("Writing to data memory at {:#x}: {:?}", addr, &data[..4]);
             self.data.data[data_addr].copy_from_slice(data);
         }
         Ok(())
@@ -200,9 +191,7 @@ impl Memory {
                     size: self.program.data.len(),
                 }.into());
             }
-            let bytes = &self.program.data[addr..addr+2];
-            println!("Reading program memory at {}: {:02x} {:02x}", addr, bytes[0], bytes[1]);
-            Ok(bytes)
+            Ok(&self.program.data[addr..addr+2])
         } else if addr < 0x200 {
             // Register file (0x100-0x1FF)
             let reg_addr = addr - 0x100;
@@ -212,7 +201,6 @@ impl Memory {
                     size: self.registers.data.len(),
                 }.into());
             }
-            println!("Reading register {} at {:#x}: {:?}", reg_addr, addr, &self.registers.data[reg_addr][..4]);
             Ok(&self.registers.data[reg_addr])
         } else {
             // Data memory (0x400+)
@@ -223,7 +211,6 @@ impl Memory {
                     size: self.data.data.len(),
                 }.into());
             }
-            println!("Reading data memory at {:#x}: {:?}", addr, &self.data.data[data_addr][..4]);
             Ok(&self.data.data[data_addr])
         }
     }

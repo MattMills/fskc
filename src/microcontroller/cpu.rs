@@ -33,20 +33,8 @@ impl Cpu {
 
     /// Load program into memory
     pub fn load_program(&mut self, program: &[u8]) -> Result<()> {
-        println!("Loading program bytes: {:?}", program);
         // Write program bytes directly to program memory
         self.memory.write_program(program)?;
-        
-        // Print program memory contents for verification
-        for i in (0..program.len()).step_by(2) {
-            let byte1 = self.memory.read_program_byte(i)?;
-            let byte2 = if i + 1 < program.len() {
-                self.memory.read_program_byte(i + 1)?
-            } else {
-                0
-            };
-            println!("Address {}: 0x{:02x} 0x{:02x}", i, byte1, byte2);
-        }
         Ok(())
     }
 
@@ -65,15 +53,11 @@ impl Cpu {
         loop {
             // Read instruction bytes
             let bytes = self.memory.read_bytes(self.pc)?;
-            println!("Read bytes at PC={}: {:?}", self.pc, bytes);
             let opcode = bytes[0];
             let operand = bytes[1];
 
-            println!("PC: {}, Opcode: 0x{:02x}, Operand: 0x{:02x}", self.pc, opcode, operand);
-
             // Decode and execute
             if let Some(instr) = Instruction::decode(opcode, operand) {
-                println!("Decoded instruction: {:?}", instr);
                 match instr {
                     Instruction::Halt => break,
                     _ => {
@@ -99,7 +83,6 @@ impl Cpu {
             Instruction::Store(addr, rs) => {
                 // Store from register to data memory
                 let data = self.memory.read_bytes(rs.index() + 0x100)?.to_vec();
-                println!("Storing register {} value to memory {:#x}: {:?}", rs.index(), addr.value(), &data[..4]);
                 self.memory.write_bytes(addr.value(), &data)?;
             }
             Instruction::Add(rd, rs1, rs2) => {
@@ -114,7 +97,6 @@ impl Cpu {
                 let result = self.compute.read(0)?;
                 
                 // Store result in destination register
-                println!("Storing add result to register {}: {:?}", rd.index(), &result[..4]);
                 self.memory.write_bytes(rd.index() + 0x100, &result)?;
             }
             Instruction::Xor(rd, rs1, rs2) => {

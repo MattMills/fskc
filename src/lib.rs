@@ -2,7 +2,7 @@
 //! 
 //! This library implements a novel cryptographic system based on fractal structures and
 //! geometric complexity rather than traditional computational complexity.
-
+#![ allow(warnings)]
 mod fractal;
 mod roving;
 mod crypto;

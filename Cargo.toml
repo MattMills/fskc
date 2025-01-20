@@ -32,6 +32,10 @@ harness = false
 name = "compute_benchmarks"
 harness = false
 
+[[bench]]
+name = "avr_benchmarks"
+harness = false
+
 [[example]]
 name = "basic_usage"
 path = "examples/basic_usage.rs"

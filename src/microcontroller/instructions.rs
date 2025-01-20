@@ -51,13 +51,10 @@ impl Instruction {
                     Register::from_index(op as usize & 0x0F),
                     MemoryAddress::new(0x400 + operand as u16)
                 )),
-                0x90 => {
-                    println!("Decoding Store instruction: ST mem[{:#x}], R2", 0x400 + operand as u16);
-                    Some(Instruction::Store(
-                        MemoryAddress::new(0x400 + operand as u16),
-                        Register::from_index(2)
-                    ))
-                }
+                0x90 => Some(Instruction::Store(
+                    MemoryAddress::new(0x400 + operand as u16),
+                    Register::from_index(2)
+                )),
                 _ => match opcode {
                     0x03 => {
                         let rd = Register::from_index((operand >> 4) as usize);
