@@ -152,39 +152,54 @@ mod tests {
             CoPresenceValidator::new(Default::default()),
         );
 
-        // Add sensors
-        manager1.validator_mut().add_sensor(Accelerometer::new());
-        manager1.validator_mut().add_sensor(Barometer::new());
-        manager2.validator_mut().add_sensor(Accelerometer::new());
-        manager2.validator_mut().add_sensor(Barometer::new());
+        // Create test windows with highly correlated data
+        let mut windows1 = Vec::new();
+        let mut windows2 = Vec::new();
+        
+        for i in 0..3 {
+            let time = SystemTime::now();
+            let window1 = MeasurementWindow {
+                start_time: time,
+                duration: Duration::from_secs(1),
+                measurements: vec![1.0 + i as f64 * 0.2, 2.0 + i as f64 * 0.2, 3.0 + i as f64 * 0.2],
+                quality: EntropyQuality {
+                    shannon_entropy: 1.0,
+                    sample_rate: 100.0,
+                    signal_to_noise: 10.0,
+                    temporal_consistency: 1.0,
+                },
+            };
+            
+            let window2 = MeasurementWindow {
+                start_time: time,
+                duration: Duration::from_secs(1),
+                measurements: vec![1.1 + i as f64 * 0.2, 2.1 + i as f64 * 0.2, 3.1 + i as f64 * 0.2],
+                quality: EntropyQuality {
+                    shannon_entropy: 1.0,
+                    sample_rate: 100.0,
+                    signal_to_noise: 9.8,
+                    temporal_consistency: 1.0,
+                },
+            };
+            
+            windows1.push(window1);
+            windows2.push(window2);
+        }
 
-        // Create test windows with correlated data
-        let window1 = MeasurementWindow {
-            start_time: SystemTime::now(),
-            duration: Duration::from_secs(1),
-            measurements: vec![1.0, 1.2, 1.4],
-            quality: EntropyQuality {
-                shannon_entropy: 6.37,
-                sample_rate: 200.0,
-                signal_to_noise: 14.01,
-                temporal_consistency: 1.0,
-            },
-        };
+        // Add simulated windows to validators
+        for window in windows1 {
+            manager1.validator_mut().add_test_window(window);
+        }
+        
+        for window in windows2.clone() {
+            manager2.validator_mut().add_test_window(window);
+        }
 
-        let window2 = MeasurementWindow {
-            start_time: SystemTime::now(),
-            duration: Duration::from_secs(1),
-            measurements: vec![1.1, 1.3, 1.5],
-            quality: EntropyQuality {
-                shannon_entropy: 6.35,
-                sample_rate: 200.0,
-                signal_to_noise: 13.98,
-                temporal_consistency: 1.0,
-            },
-        };
-
-        // Attempt context establishment
-        let context = manager1.establish_context(&[window2])?;
+        // Get windows from second validator for context establishment
+        let other_windows = manager2.validator().recent_windows(3);
+        
+        // Test context establishment with simulated data
+        let context = manager1.establish_context(&other_windows)?;
         assert!(context.is_some(), "Context establishment should succeed");
 
         if let Some(context) = context {

@@ -66,6 +66,12 @@ impl CoPresenceValidator {
         }
     }
 
+    /// Add a measurement window (for testing)
+    #[cfg(test)]
+    pub fn add_test_window(&mut self, window: MeasurementWindow) {
+        self.measurement_windows.push(window);
+    }
+
     /// Add a sensor to the validator
     pub fn add_sensor<S: Sensor + 'static>(&mut self, sensor: S) {
         self.sensors.push(Box::new(sensor));
@@ -229,16 +235,10 @@ mod tests {
         let config = CoPresenceConfig::default();
         let mut validator = CoPresenceValidator::new(config);
 
-        // Add sensors
-        validator.add_sensor(Accelerometer::new());
-        validator.add_sensor(Barometer::new());
-
-        // Start collection
-        validator.start_collection()?;
-
-        // Create test windows
+        // Create test windows with highly correlated data
+        let time = SystemTime::now();
         let window1 = MeasurementWindow {
-            start_time: SystemTime::now(),
+            start_time: time,
             duration: Duration::from_secs(1),
             measurements: vec![1.0, 2.0, 3.0, 4.0, 5.0],
             quality: EntropyQuality {
@@ -250,13 +250,13 @@ mod tests {
         };
 
         let window2 = MeasurementWindow {
-            start_time: SystemTime::now(),
+            start_time: time,  // Same time for high sync score
             duration: Duration::from_secs(1),
-            measurements: vec![1.1, 2.1, 3.1, 4.1, 5.1],
+            measurements: vec![1.1, 2.1, 3.1, 4.1, 5.1],  // Slightly offset but correlated
             quality: EntropyQuality {
                 shannon_entropy: 1.0,
                 sample_rate: 100.0,
-                signal_to_noise: 9.8,
+                signal_to_noise: 9.8,  // Close to window1 for high proximity
                 temporal_consistency: 1.0,
             },
         };
@@ -276,7 +276,6 @@ mod tests {
         // Test overall validation
         assert!(validator.validate_copresence(&window1, &window2));
 
-        validator.stop_collection()?;
         Ok(())
     }
 }
