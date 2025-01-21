@@ -92,11 +92,11 @@ mod tests {
         
         // Load test program: Add mem[0] and mem[1], store in mem[2]
         let program = vec![
-            0x80, 0x01,  // LD R0, mem[0]
-            0x80, 0x12,  // LD R1, mem[1]
-            0x03, 0x12,  // ADD R2 <- R0 + R1
-            0x82, 0x22,  // ST mem[2], R2
-            0xFF, 0x00,  // HALT
+            0x01, 0x00,  // LOAD R0, [0x000]   ; Load from mem[0] into R0
+            0x01, 0x01,  // LOAD R1, [0x001]   ; Load from mem[1] into R1
+            0x02, 0x01,  // ADD R0, R1         ; Add R1 to R0
+            0x03, 0x02,  // STORE [0x002], R0  ; Store R0 to mem[2]
+            0x00, 0x00,  // HALT
         ];
         
         mc.load_program(&program)?;
