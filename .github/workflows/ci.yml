@@ -81,22 +81,32 @@ jobs:
             fi
           }
           
-          # Run lib tests individually
           FAILED=0
           
-          # Get list of tests
-          TEST_LIST=$(cargo test --no-run --message-format=json | jq -r 'select(.profile.test == true) | .target.name' | sort -u)
+          # Run library tests
+          if ! run_test "lib_tests" "cargo test --lib --verbose"; then
+            FAILED=1
+          fi
           
-          for test in $TEST_LIST; do
-            if ! run_test "test_$test" "cargo test --test $test --verbose"; then
-              FAILED=1
-            fi
-          done
+          # Run integration tests
+          if ! run_test "integration_tests" "cargo test --test integration_tests --verbose"; then
+            FAILED=1
+          fi
           
           # Run doc tests
           if ! run_test "doc_tests" "cargo test --doc --verbose"; then
             FAILED=1
           fi
+          
+          # Run any other test targets
+          for test_file in tests/*.rs; do
+            if [ -f "$test_file" ] && [ "$(basename "$test_file")" != "integration_tests.rs" ]; then
+              test_name=$(basename "$test_file" .rs)
+              if ! run_test "$test_name" "cargo test --test $test_name --verbose"; then
+                FAILED=1
+              fi
+            fi
+          done
           
           exit $FAILED
           EOF
