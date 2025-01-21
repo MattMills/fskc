@@ -348,19 +348,46 @@ mod tests {
     fn test_memory_layout() -> Result<()> {
         let mut mem = Memory::new(256);
         
-        // Program memory (first 256 bytes)
-        mem.write_bytes(0, &[0x42])?;
-        assert_eq!(mem.read_bytes(0)?, &[0x42]);
+        // Test endianness preservation in program memory
+        let test_val: u16 = 0x4217; // Test value with different high/low bytes
+        let bytes = test_val.to_le_bytes(); // Use little-endian for test
+        mem.write_bytes(0, &bytes)?;
+        let read_bytes = mem.read_bytes(0)?;
+        assert_eq!(read_bytes, &bytes, "Program memory should preserve byte order");
+        let recovered_val = u16::from_le_bytes([read_bytes[0], read_bytes[1]]);
+        assert_eq!(recovered_val, test_val, "Value should be preserved through memory operations");
         
-        // Register file (0x100-0x1FF)
-        let reg_data = vec![0x42; 32];
+        // Test bit pattern preservation in register file
+        let bit_pattern = vec![
+            0b10101010, // Alternating bits
+            0b11110000, // High/low nibbles
+            0b00001111, // Low/high nibbles
+            0xFF,       // All ones
+            0x00,       // All zeros
+        ];
+        let mut reg_data = vec![0; 32];
+        reg_data[..5].copy_from_slice(&bit_pattern);
+        
         mem.write_bytes(0x100, &reg_data)?;
-        assert_eq!(mem.read_bytes(0x100)?, &reg_data[..]);
+        let read_reg = mem.read_bytes(0x100)?;
+        assert_eq!(&read_reg[..5], &bit_pattern, "Register should preserve bit patterns");
         
-        // Data memory (0x400+)
-        let data = vec![0x17; 32];
+        // Test LSB/MSB handling in data memory
+        let mut data = vec![0; 32];
+        // Test different byte patterns
+        data[0] = 0x80; // MSB set
+        data[1] = 0x01; // LSB set
+        data[2] = 0x55; // Alternating bits starting with LSB
+        data[3] = 0xAA; // Alternating bits starting with MSB
+        
         mem.write_bytes(0x400, &data)?;
-        assert_eq!(mem.read_bytes(0x400)?, &data[..]);
+        let read_data = mem.read_bytes(0x400)?;
+        
+        // Verify bit patterns are preserved
+        assert_eq!(read_data[0], 0x80, "MSB should be preserved");
+        assert_eq!(read_data[1], 0x01, "LSB should be preserved");
+        assert_eq!(read_data[2], 0x55, "Alternating pattern (LSB first) should be preserved");
+        assert_eq!(read_data[3], 0xAA, "Alternating pattern (MSB first) should be preserved");
         
         // Test bounds
         assert!(mem.write_bytes(0x800, &data).is_err());

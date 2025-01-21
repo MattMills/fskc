@@ -322,22 +322,43 @@ mod tests {
     fn test_logical_operations() -> Result<()> {
         let mut compute = setup_compute();
         
-        let value1 = vec![0b10101010u8];
-        let value2 = vec![0b11001100u8];
+        // Test patterns to verify bit ordering preservation
+        let test_patterns = vec![
+            // (value1, value2, expected_and, expected_or, expected_xor)
+            (0b10101010, 0b11001100, 0b10001000, 0b11101110, 0b01100110), // Alternating patterns
+            (0b11110000, 0b00001111, 0b00000000, 0b11111111, 0b11111111), // Split high/low
+            (0b00000001, 0b10000000, 0b00000000, 0b10000001, 0b10000001), // LSB/MSB only
+            (0b01010101, 0b10101010, 0b00000000, 0b11111111, 0b11111111), // Inverse patterns
+        ];
         
-        // Test AND
-        compute.load(0, &value1)?;
-        compute.load(1, &value2)?;
-        compute.compute(Operation::And, 0, 1)?;
-        let result = compute.read(0)?;
-        assert_eq!(result[0], value1[0] & value2[0]);
+        for (val1, val2, and_expected, or_expected, xor_expected) in test_patterns {
+            // Test AND with bit patterns
+            compute.load(0, &vec![val1])?;
+            compute.load(1, &vec![val2])?;
+            compute.compute(Operation::And, 0, 1)?;
+            let result = compute.read(0)?;
+            assert_eq!(result[0], and_expected, 
+                "AND operation should preserve bit ordering: {:08b} & {:08b} = {:08b}", 
+                val1, val2, and_expected);
 
-        // Test OR
-        compute.load(0, &value1)?;
-        compute.load(1, &value2)?;
-        compute.compute(Operation::Or, 0, 1)?;
-        let result = compute.read(0)?;
-        assert_eq!(result[0], value1[0] | value2[0]);
+            // Test OR with bit patterns
+            compute.load(0, &vec![val1])?;
+            compute.load(1, &vec![val2])?;
+            compute.compute(Operation::Or, 0, 1)?;
+            let result = compute.read(0)?;
+            assert_eq!(result[0], or_expected,
+                "OR operation should preserve bit ordering: {:08b} | {:08b} = {:08b}",
+                val1, val2, or_expected);
+
+            // Test XOR with bit patterns
+            compute.load(0, &vec![val1])?;
+            compute.load(1, &vec![val2])?;
+            compute.compute(Operation::Xor, 0, 1)?;
+            let result = compute.read(0)?;
+            assert_eq!(result[0], xor_expected,
+                "XOR operation should preserve bit ordering: {:08b} ^ {:08b} = {:08b}",
+                val1, val2, xor_expected);
+        }
 
         Ok(())
     }
