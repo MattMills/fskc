@@ -154,28 +154,75 @@ jobs:
             local name=$1
             echo "Running example: $name"
             mkdir -p example-results
-            if cargo run --example "$name" > "example-results/$name.txt" 2>&1; then
+            
+            # First try to build the example
+            echo "Building example $name..."
+            if ! cargo build --example "$name" > "example-results/${name}_build.txt" 2>&1; then
+              echo "✗ Example $name failed to build"
+              echo "failure" > "example-results/$name.status"
+              echo "Build log:"
+              cat "example-results/${name}_build.txt"
+              return 1
+            fi
+            
+            # Then try to run it
+            echo "Running example $name..."
+            if cargo run --example "$name" > "example-results/${name}_run.txt" 2>&1; then
               echo "✓ Example $name succeeded"
               echo "success" > "example-results/$name.status"
+              return 0
             else
-              echo "✗ Example $name failed"
+              echo "✗ Example $name failed during execution"
               echo "failure" > "example-results/$name.status"
-              cat "example-results/$name.txt"
+              echo "Run log:"
+              cat "example-results/${name}_run.txt"
               return 1
             fi
           }
           
-          FAILED=0
+          # Get list of all examples
+          echo "Discovering examples..."
+          examples=()
+          while IFS= read -r file; do
+            examples+=("$(basename "$file" .rs)")
+          done < <(find examples -name "*.rs" -type f)
           
-          # Get list of examples from Cargo.toml
-          for example in examples/*.rs; do
-            name=$(basename "$example" .rs)
-            if ! run_example "$name"; then
-              FAILED=1
+          total=${#examples[@]}
+          passed=0
+          failed=0
+          failed_examples=()
+          
+          echo "Found $total examples to run"
+          echo "=========================="
+          
+          # Run each example
+          for name in "${examples[@]}"; do
+            if run_example "$name"; then
+              ((passed++))
+            else
+              ((failed++))
+              failed_examples+=("$name")
             fi
+            echo "------------------------"
           done
           
-          exit $FAILED
+          # Print summary
+          echo "=========================="
+          echo "SUMMARY:"
+          echo "Total: $total"
+          echo "Passed: $passed"
+          echo "Failed: $failed"
+          
+          if [ $failed -gt 0 ]; then
+            echo "Failed examples:"
+            for name in "${failed_examples[@]}"; do
+              echo "- $name"
+            done
+            exit 1
+          fi
+          
+          echo "All examples passed!"
+          exit 0
           EOF
           chmod +x run-examples.sh
       
