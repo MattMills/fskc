@@ -8,11 +8,11 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+  RUST_BACKTRACE: full
 
 jobs:
-  test:
-    name: Test Suite
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -31,28 +31,97 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
       
-      - name: Run tests
+      - name: Check build
+        run: cargo check --verbose
+        
+      - name: Build all targets
+        run: cargo build --all-targets --verbose
+
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            
+      - name: Create test script
         run: |
-          mkdir -p test-results
-          cargo test --verbose > test-results/test-output.txt 2>&1 || true
-          echo "Test output saved to test-results/test-output.txt"
+          cat > run-tests.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          # Function to run a test and save output
+          run_test() {
+            local name=$1
+            local cmd=$2
+            echo "Running $name..."
+            mkdir -p test-results
+            if $cmd > "test-results/$name.txt" 2>&1; then
+              echo "✓ $name passed"
+              echo "success" > "test-results/$name.status"
+            else
+              echo "✗ $name failed"
+              echo "failure" > "test-results/$name.status"
+              cat "test-results/$name.txt"
+              return 1
+            fi
+          }
+          
+          # Run lib tests individually
+          FAILED=0
+          
+          # Get list of tests
+          TEST_LIST=$(cargo test --no-run --message-format=json | jq -r 'select(.profile.test == true) | .target.name' | sort -u)
+          
+          for test in $TEST_LIST; do
+            if ! run_test "test_$test" "cargo test --test $test --verbose"; then
+              FAILED=1
+            fi
+          done
+          
+          # Run doc tests
+          if ! run_test "doc_tests" "cargo test --doc --verbose"; then
+            FAILED=1
+          fi
+          
+          exit $FAILED
+          EOF
+          chmod +x run-tests.sh
+      
+      - name: Run tests
+        run: ./run-tests.sh
       
       - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: test-results
           path: test-results/
-          
+
   examples:
     name: Run Examples
+    needs: build
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - uses: actions/checkout@v3
       
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        
+      
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
@@ -63,26 +132,48 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      
-      - name: Run examples
+            
+      - name: Create examples script
         run: |
-          mkdir -p example-results
-          for example in examples/*.rs; do
-            name=$(basename $example .rs)
+          cat > run-examples.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          # Function to run an example and save output
+          run_example() {
+            local name=$1
             echo "Running example: $name"
-            echo "----------------------------------------"
-            if cargo run --example $name > "example-results/$name.txt" 2>&1; then
-              echo "Example $name succeeded"
-              echo "Output saved to example-results/$name.txt"
+            mkdir -p example-results
+            if cargo run --example "$name" > "example-results/$name.txt" 2>&1; then
+              echo "✓ Example $name succeeded"
+              echo "success" > "example-results/$name.status"
             else
-              echo "Example $name failed!"
-              echo "Output saved to example-results/$name.txt"
-              exit 1
+              echo "✗ Example $name failed"
+              echo "failure" > "example-results/$name.status"
+              cat "example-results/$name.txt"
+              return 1
             fi
-            echo "----------------------------------------"
+          }
+          
+          FAILED=0
+          
+          # Get list of examples from Cargo.toml
+          for example in examples/*.rs; do
+            name=$(basename "$example" .rs)
+            if ! run_example "$name"; then
+              FAILED=1
+            fi
           done
           
+          exit $FAILED
+          EOF
+          chmod +x run-examples.sh
+      
+      - name: Run examples
+        run: ./run-examples.sh
+      
       - name: Upload example results
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: example-results
