@@ -90,29 +90,29 @@ mod tests {
         // Create microcontroller
         let mut mc = Microcontroller::new(compute, 256)?;
         
-        // Load test program: Add mem[0] and mem[1], store in mem[2]
+        // Load test program: Add data mem[0] and mem[1], store in mem[2]
         let program = vec![
-            0x01, 0x00,  // LOAD R0, [0x000]   ; Load from mem[0] into R0
-            0x01, 0x01,  // LOAD R1, [0x001]   ; Load from mem[1] into R1
-            0x02, 0x01,  // ADD R0, R1         ; Add R1 to R0
-            0x03, 0x02,  // STORE [0x002], R0  ; Store R0 to mem[2]
-            0x00, 0x00,  // HALT
+            0x80, 0x00,  // LOAD R0, [0x400]   ; Load from data mem[0] into R0
+            0x81, 0x01,  // LOAD R1, [0x401]   ; Load from data mem[1] into R1
+            0x03, 0x14,  // ADD R1, R0, R1     ; Add R0 and R1, store in R1 (rd=1, rs1=0, rs2=1)
+            0x91, 0x02,  // STORE [0x402], R1  ; Store R1 to data mem[2]
+            0xFF, 0x00,  // HALT
         ];
         
         mc.load_program(&program)?;
         
-        // Load test data
+        // Load test data into data memory (offset by 0x400)
         let data1 = vec![42u8; 32];
         let data2 = vec![24u8; 32];
         
-        mc.load_data(0, &data1)?;
-        mc.load_data(1, &data2)?;
+        mc.load_data(0x400, &data1)?;
+        mc.load_data(0x401, &data2)?;
         
         // Execute program
         mc.execute()?;
         
-        // Verify result (should be normalized form of 66)
-        let result = mc.get_memory(2)?;
+        // Verify result at data memory offset (should be normalized form of 66)
+        let result = mc.get_memory(0x402)?;
         assert!(!result.iter().all(|&x| x == 0));
         
         Ok(())

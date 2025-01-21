@@ -98,6 +98,10 @@ impl Cpu {
                 
                 // Store result in destination register
                 self.memory.write_bytes(rd.index() + 0x100, &result)?;
+
+                // Update flags
+                self.flags.zero = result.iter().all(|&x| x == 0);
+                self.flags.negative = result[0] & 0x80 != 0;
             }
             Instruction::Xor(rd, rs1, rs2) => {
                 // Read operands from registers

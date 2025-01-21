@@ -26,12 +26,12 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    /// Encode instruction as bytes
+    /// Encode instruction as bytes in little-endian format
     pub fn encode(&self) -> [u8; 2] {
         match self {
             Instruction::Load(reg, addr) => [0x80 | reg.index() as u8, (addr.value() & 0xFF) as u8],
-            Instruction::Store(addr, _reg) => [0x90, (addr.value() & 0xFF) as u8],
-            Instruction::Add(rd, rs1, _rs2) => [0x03, (rd.index() << 4 | rs1.index()) as u8],
+            Instruction::Store(addr, reg) => [0x90 | reg.index() as u8, (addr.value() & 0xFF) as u8],
+            Instruction::Add(rd, rs1, rs2) => [0x03, ((rd.index() & 0x03) << 4 | (rs1.index() & 0x03) << 2 | (rs2.index() & 0x03)) as u8],
             Instruction::Sub(rd, rs1, _rs2) => [0x04, (rd.index() << 4 | rs1.index()) as u8],
             Instruction::And(rd, rs1, _rs2) => [0x05, (rd.index() << 4 | rs1.index()) as u8],
             Instruction::Or(rd, rs1, _rs2) => [0x06, (rd.index() << 4 | rs1.index()) as u8],
@@ -43,7 +43,7 @@ impl Instruction {
         }
     }
 
-    /// Decode instruction from bytes
+    /// Decode instruction from bytes in little-endian format
     pub fn decode(opcode: u8, operand: u8) -> Option<Self> {
         match opcode {
             op => match op & 0xF0 {
@@ -51,15 +51,15 @@ impl Instruction {
                     Register::from_index(op as usize & 0x0F),
                     MemoryAddress::new(0x400 + operand as u16)
                 )),
-                0x90 => Some(Instruction::Store(
+                0x90..=0x9F => Some(Instruction::Store(
                     MemoryAddress::new(0x400 + operand as u16),
-                    Register::from_index(2)
+                    Register::from_index((opcode & 0x0F) as usize)
                 )),
                 _ => match opcode {
                     0x03 => {
                         let rd = Register::from_index((operand >> 4) as usize);
-                        let rs1 = Register::from_index((operand & 0x0F) as usize);
-                        let rs2 = Register::from_index(1); // R1 is always the second operand
+                        let rs1 = Register::from_index((operand >> 2 & 0x03) as usize);
+                        let rs2 = Register::from_index((operand & 0x03) as usize);
                         Some(Instruction::Add(rd, rs1, rs2))
                     },
                     0x04 => Some(Instruction::Sub(
@@ -185,5 +185,77 @@ pub struct AvrDecoder;
 impl InstructionDecoder for AvrDecoder {
     fn decode(&self, opcode: u8, operand: u8) -> Option<Instruction> {
         Instruction::decode(opcode, operand)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_instruction_encoding_decoding() {
+        // Test Load instruction
+        let load = Instruction::Load(Register::R0, MemoryAddress::new(0x400));
+        let encoded = load.encode();
+        assert_eq!(encoded[0], 0x80); // opcode with register 0
+        assert_eq!(encoded[1], 0x00); // offset
+        let decoded = Instruction::decode(encoded[0], encoded[1]);
+        assert_eq!(decoded, Some(load));
+
+        // Test Store instruction
+        let store = Instruction::Store(MemoryAddress::new(0x402), Register::R1);
+        let encoded = store.encode();
+        assert_eq!(encoded[0], 0x91); // opcode with register 1
+        assert_eq!(encoded[1], 0x02); // offset
+        let decoded = Instruction::decode(encoded[0], encoded[1]);
+        assert_eq!(decoded, Some(store));
+
+        // Test Add instruction
+        let add = Instruction::Add(Register::R1, Register::R0, Register::R1);
+        let encoded = add.encode();
+        assert_eq!(encoded[0], 0x03); // ADD opcode
+        assert_eq!(encoded[1], 0x11); // rd=1(01), rs1=0(00), rs2=1(01)
+        let decoded = Instruction::decode(encoded[0], encoded[1]);
+        assert_eq!(decoded, Some(add));
+
+        // Test endianness with different register combinations
+        let add_r2r3 = Instruction::Add(Register::R2, Register::R3, Register::R1);
+        let encoded = add_r2r3.encode();
+        assert_eq!(encoded[0], 0x03); // ADD opcode
+        assert_eq!(encoded[1], 0x2D); // rd=2(10), rs1=3(11), rs2=1(01)
+        let decoded = Instruction::decode(encoded[0], encoded[1]);
+        assert_eq!(decoded, Some(add_r2r3));
+    }
+
+    #[test]
+    fn test_memory_address_encoding() {
+        // Test different memory addresses
+        let addresses = [0x400, 0x401, 0x402, 0x4FF];
+        for addr in addresses {
+            let load = Instruction::Load(Register::R0, MemoryAddress::new(addr));
+            let encoded = load.encode();
+            let decoded = Instruction::decode(encoded[0], encoded[1]);
+            assert_eq!(decoded, Some(load), "Failed for address 0x{:X}", addr);
+        }
+    }
+
+    #[test]
+    fn test_register_combinations() {
+        // Test all valid register combinations for Add
+        for rd in 0..4 {
+            for rs1 in 0..4 {
+                for rs2 in 0..4 {
+                    let add = Instruction::Add(
+                        Register::from_index(rd),
+                        Register::from_index(rs1),
+                        Register::from_index(rs2)
+                    );
+                    let encoded = add.encode();
+                    let decoded = Instruction::decode(encoded[0], encoded[1]);
+                    assert_eq!(decoded, Some(add), 
+                        "Failed for rd={}, rs1={}, rs2={}", rd, rs1, rs2);
+                }
+            }
+        }
     }
 }
